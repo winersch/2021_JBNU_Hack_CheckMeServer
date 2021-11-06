@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -84,19 +85,17 @@ public class MainController {
 
         JSONDB jsondb = JSONDB.getInstance();
 
-        if (!jsondb.getDbHashMap().isEmpty()) {
-            if (!jsondb.getDbHashMap().containsKey(requestMap.get("id"))) {
-                jsondb.getDbHashMap().put(requestMap.get("id"), new HashMap<String, Object>() {{
-                    put("id", requestMap.get("id"));
-                    put("pw", requestMap.get("pw"));
-                    put("email", requestMap.get("email"));
-                }});
+        if (!jsondb.getDbHashMap().containsKey(requestMap.get("id"))) {
+            jsondb.getDbHashMap().put(requestMap.get("id"), new HashMap<String, Object>() {{
+                put("id", requestMap.get("id"));
+                put("pw", requestMap.get("pw"));
+                put("email", requestMap.get("email"));
+            }});
 
-                responseEntity = new ResponseEntity<>(requestMap, HttpStatus.OK);
+            responseEntity = new ResponseEntity<>("OK", HttpStatus.OK);
 
-            } else {
-                responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
-            }
+        } else {
+            responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
         }
 
         return responseEntity;
@@ -115,19 +114,35 @@ public class MainController {
                 HashMap<String, String> uploadHashMap = new HashMap<String, String>();
                 HashMap<String, String> authHashMap = new HashMap<String, String>();
 
+                ArrayList<Map<String, String>> userVisitArrayList;
+
                 try {
                     if (jsondb.getDbHashMap().containsKey(requestMap.get("id"))) {
                         decodeHexString = new String(Hex.decodeHex(requestMap.get("AuthToken").toCharArray()), "UTF-8").split("#");
 
+                        Map<String, String> userRequestMap = requestMap;
+
                         if (decodeHexString[1].equals("10115")) { // test place
                             uploadHashMap.put("place", "전북대학교 5호관");
+                            userRequestMap.put("place", "전북대학교 5호관");
+
+                        } else {
+                            uploadHashMap.put("place", "전북대학교 어딘가");
+                            userRequestMap.put("place", "전북대학교 어딘가");
                         }
                         uploadHashMap.put("status", "ok");
 
                         authHashMap.put("AuthToken", requestMap.get("AuthToken"));
                         authHashMap.put("injection", requestMap.get("injection"));
 
-                        jsondb.getDbHashMap().get(requestMap.get("id")).put("visitList", requestMap);
+                        if (jsondb.getDbHashMap().get(requestMap.get("id")).containsKey("visitList")) {
+                            userVisitArrayList = (ArrayList<Map<String, String>>) jsondb.getDbHashMap().get(requestMap.get("id")).get("visitList");
+                        } else {
+                            userVisitArrayList = new ArrayList<Map<String, String>>();
+                        }
+
+                        userVisitArrayList.add(userRequestMap);
+                        jsondb.getDbHashMap().get(requestMap.get("id")).put("visitList", userVisitArrayList);
 
                         jsondb.getAuthDBHashMap().add(authHashMap);
 
