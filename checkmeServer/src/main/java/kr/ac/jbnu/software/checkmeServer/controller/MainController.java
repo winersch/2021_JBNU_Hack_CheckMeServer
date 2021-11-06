@@ -130,10 +130,19 @@ public class MainController {
                             uploadHashMap.put("place", "전북대학교 어딘가");
                             userRequestMap.put("place", "전북대학교 어딘가");
                         }
-                        uploadHashMap.put("status", "ok");
 
+                        ExtServerConnector extServerConnector = ExtServerConnector.getInstance();
+                        if (extServerConnector.checkExtServerVaccineExchange(requestMap.get("AuthToken")).equals("2차접종")) {
+                            authHashMap.put("injection", "2");
+                        } else if (extServerConnector.checkExtServerVaccineExchange(requestMap.get("AuthToken")).equals("1차접종")) {
+                            authHashMap.put("injection", "1");
+                        } else if (extServerConnector.checkExtServerVaccineExchange(requestMap.get("AuthToken")).equals("미접종")) {
+                            authHashMap.put("injection", "0");
+                        }
+
+                        uploadHashMap.put("status", "ok");
                         authHashMap.put("AuthToken", requestMap.get("AuthToken"));
-                        authHashMap.put("injection", requestMap.get("injection"));
+
 
                         if (jsondb.getDbHashMap().get(requestMap.get("id")).containsKey("visitList")) {
                             userVisitArrayList = (ArrayList<Map<String, String>>) jsondb.getDbHashMap().get(requestMap.get("id")).get("visitList");
