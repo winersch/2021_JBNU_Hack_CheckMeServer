@@ -71,7 +71,4 @@ public class JSONDB {
         this.authDBHashMap = authDBHashMap;
     }
 
-    public void resetDB(){
-        this.jsondb = null;
-    }
 }

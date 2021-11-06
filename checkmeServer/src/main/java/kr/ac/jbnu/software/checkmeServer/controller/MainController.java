@@ -1,11 +1,14 @@
 package kr.ac.jbnu.software.checkmeServer.controller;
 
 import kr.ac.jbnu.software.checkmeServer.model.JSONDB;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,20 +31,22 @@ public class MainController {
 
     @RequestMapping(value = "/rpi/isHaveAuth", method = RequestMethod.GET)
     @ResponseBody
-    public ResponseEntity<?> getuserAuthresponseEntity(HttpServletRequest request, @RequestBody Map<String, String> requestMap) {
+    public ResponseEntity<?> getuserAuthresponseEntity(HttpServletRequest request) {
         ResponseEntity<?> responseEntity = null;
 
         JSONDB jsondb = JSONDB.getInstance();
 
-        if (requestMap != null) {
-            responseEntity = new ResponseEntity<>("OK", HttpStatus.OK);
+        if (!jsondb.getAuthDBHashMap().isEmpty()) {
+            responseEntity = new ResponseEntity<>(jsondb.getAuthDBHashMap(), HttpStatus.OK);
+
         } else {
             responseEntity = new ResponseEntity<>("NOT_FOUND", HttpStatus.NOT_FOUND);
         }
+
         return responseEntity;
     }
 
-    @RequestMapping(value = "/user/login", method = RequestMethod.POST)
+    @RequestMapping(value = "/user/login", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
     public ResponseEntity<?> postUserLoginResponseEntity(HttpServletRequest request, @RequestBody Map<String, String> requestMap) {
         ResponseEntity<?> responseEntity = null;
@@ -49,67 +54,116 @@ public class MainController {
         JSONDB jsondb = JSONDB.getInstance();
 
         if (!requestMap.isEmpty()) {
-            if (jsondb.getDbHashMap().containsKey(requestMap.get("id"))
-                    && jsondb.getDbHashMap().get(requestMap.get("id")).get("pw").equals(requestMap.get("pw")))
-                responseEntity = new ResponseEntity<>("OK", HttpStatus.OK);
+            if (requestMap.get("id") != null && !requestMap.get("id").equals("")
+                    && requestMap.get("pw") != null && !requestMap.get("pw").equals("")) {
+
+                if (jsondb.getDbHashMap().containsKey(requestMap.get("id"))) {
+                    if (jsondb.getDbHashMap().get(requestMap.get("id")).get("pw").equals(requestMap.get("pw"))) {
+                        responseEntity = new ResponseEntity<>("OK", HttpStatus.OK);
+
+                    } else {
+                        responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
+                    }
+
+                } else {
+                    responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
+                }
+            }
+
         } else {
             responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
         }
+
         return responseEntity;
     }
 
-    @RequestMapping(value = "/user/signup", method = RequestMethod.POST)
+    @RequestMapping(value = "/user/signup", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
     public ResponseEntity<?> postUserSignUpResponseEntity(HttpServletRequest request, @RequestBody Map<String, String> requestMap) {
         ResponseEntity<?> responseEntity = null;
 
         JSONDB jsondb = JSONDB.getInstance();
-        HashMap<String, Object> inputHashMap = new HashMap<String, Object>();
 
-        if (requestMap.get("id") != null && requestMap.get("pw") != null && requestMap.get("email") != null) {
-            inputHashMap.put("id", requestMap.get("id"));
-            inputHashMap.put("pw", requestMap.get("pw"));
-            inputHashMap.put("email", requestMap.get("email"));
-            jsondb.getDbHashMap().put(requestMap.get("id"), inputHashMap);
+        if (!jsondb.getDbHashMap().isEmpty()) {
+            if (!jsondb.getDbHashMap().containsKey(requestMap.get("id"))) {
+                jsondb.getDbHashMap().put(requestMap.get("id"), new HashMap<String, Object>() {{
+                    put("id", requestMap.get("id"));
+                    put("pw", requestMap.get("pw"));
+                    put("email", requestMap.get("email"));
+                }});
 
-            responseEntity = new ResponseEntity<>("OK", HttpStatus.OK);
-        } else {
-            responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
+                responseEntity = new ResponseEntity<>(requestMap, HttpStatus.OK);
+
+            } else {
+                responseEntity = new ResponseEntity<>("NO", HttpStatus.BAD_REQUEST);
+            }
         }
+
         return responseEntity;
     }
 
-    @RequestMapping(value = "/user/AuthToken", method = RequestMethod.POST)
+    @RequestMapping(value = "/user/AuthToken", method = RequestMethod.POST, produces = "application/json")
     @ResponseBody
     public ResponseEntity<?> postUserAuthTokenResponseEntity(HttpServletRequest request, @RequestBody Map<String, String> requestMap) {
         ResponseEntity<?> responseEntity = null;
 
         JSONDB jsondb = JSONDB.getInstance();
-        HashMap<String, String> returnHashMap = new HashMap<String, String>();
 
-        if (!requestMap.isEmpty()) {
-            if (jsondb.getDbHashMap().containsKey(requestMap.get("id")) && requestMap.get("AuthToken") != null
-                    && requestMap.get("timestamp") != null && requestMap.get("injection") != null) {
+        if (!jsondb.getDbHashMap().isEmpty()) {
+            if (requestMap.containsKey("id") && requestMap.containsKey("AuthToken") && requestMap.containsKey("timestamp") && requestMap.containsKey("injection")) {
+                String[] decodeHexString;
+                HashMap<String, String> uploadHashMap = new HashMap<String, String>();
+                HashMap<String, String> authHashMap = new HashMap<String, String>();
 
-                returnHashMap.put("status", "ok");
-                returnHashMap.put("place", "전북대학교 5호관");
-                responseEntity = new ResponseEntity<>(returnHashMap, HttpStatus.OK);
+                try {
+                    if (jsondb.getDbHashMap().containsKey(requestMap.get("id"))) {
+                        decodeHexString = new String(Hex.decodeHex(requestMap.get("AuthToken").toCharArray()), "UTF-8").split("#");
+
+                        if (decodeHexString[1].equals("10115")) { // test place
+                            uploadHashMap.put("place", "전북대학교 5호관");
+                        }
+                        uploadHashMap.put("status", "ok");
+
+                        authHashMap.put("AuthToken", requestMap.get("AuthToken"));
+                        authHashMap.put("injection", requestMap.get("injection"));
+
+                        jsondb.getDbHashMap().get(requestMap.get("id")).put("visitList", requestMap);
+
+                        jsondb.getAuthDBHashMap().add(authHashMap);
+
+                        responseEntity = new ResponseEntity<>(uploadHashMap, HttpStatus.OK);
+
+                    } else {
+                        responseEntity = new ResponseEntity<>("BAD_REQUEST", HttpStatus.BAD_REQUEST);
+                    }
+
+                } catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                } catch (DecoderException e) {
+                    e.printStackTrace();
+                }
+
             } else {
                 responseEntity = new ResponseEntity<>("BAD_REQUEST", HttpStatus.BAD_REQUEST);
             }
+
         } else {
             responseEntity = new ResponseEntity<>("BAD_REQUEST", HttpStatus.BAD_REQUEST);
         }
         return responseEntity;
     }
 
-    @RequestMapping(value = "/rpi/deleteAuth", method = RequestMethod.DELETE)
+    @RequestMapping(value = "/rpi/deleteAuth", method = RequestMethod.GET)
     @ResponseBody
     public ResponseEntity<?> delAuthResponseEntity(HttpServletRequest request) {
         ResponseEntity<?> responseEntity = null;
 
         JSONDB jsondb = JSONDB.getInstance();
-        jsondb.resetDB();
+
+        if (!jsondb.getAuthDBHashMap().isEmpty()) {
+            jsondb.getAuthDBHashMap().clear();
+        }
+
         responseEntity = new ResponseEntity<>("OK", HttpStatus.OK);
 
         return responseEntity;
